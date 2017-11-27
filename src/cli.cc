@@ -71,6 +71,8 @@ namespace Config {
 	static bool restore_all = false;
 	static bool superblock = false;
 
+	static ext2_ino_t depth = 0;
+	static ext2_ino_t entries = 0;
 	static ext2_ino_t inode = 0;
 	static ext2_ino_t inode_to_block = 0;
 	static ext2_ino_t show_journal_inodes = 0;
@@ -130,6 +132,8 @@ static void print_usage(std::ostream& os, std::string cmd)
   os << "Actions:\n";
   os << "  --inode ino            Show info on inode 'ino'.\n";
   os << "  --block blk            Show info on block 'blk'.\n";
+  os << "  --delpth depth         Set leaf inode depth 'depth'.\n";
+  os << "  --entries entries      Set leaf inode depth 'entries'.\n";
   os << "  --restore-inode ino[,ino,...]\n";
   os << "                         Restore the file(s) with known inode number 'ino'.\n";
   os << "                         The restored files are created in ./RECOVERED_FILES\n";
@@ -306,7 +310,7 @@ static errcode_t examine_fs(ext2_filsys fs)
 
 	// Handle --restore-directory
 	if (!commandline_restore_directory.empty()) {
-		errcode = restore_file (fs, jfs, commandline_restore_directory.c_str());
+		errcode = restore_file (fs, jfs, 0, 0, commandline_restore_directory.c_str());
 	}
 	if (errcode) {
 		com_err(Config::progname.c_str(), errcode, "while restoring directory.");
@@ -315,7 +319,7 @@ static errcode_t examine_fs(ext2_filsys fs)
 
 	// Handle --restore-file
 	if (!Config::restore_file.empty()) {
-		errcode = restore_file(fs, jfs, Config::restore_file);
+		errcode = restore_file(fs, jfs, Config::depth, Config::entries, Config::restore_file);
 	}
 	if (errcode) {
 		com_err(Config::progname.c_str(), errcode, "while restoring file.");
@@ -335,7 +339,7 @@ static errcode_t examine_fs(ext2_filsys fs)
 			while (!infile.eof()) {
 				infile.getline (name, namelen);
 				if(strlen(name) > 0)
-					errcode = restore_file (fs, jfs, std::string(name) );
+					errcode = restore_file (fs, jfs, Config::depth, Config::entries, std::string(name) );
 					if(errcode)  com_err(Config::progname.c_str(), errcode, "while restoring file %s.", name);
 			}
 			infile.close();
@@ -389,6 +393,8 @@ static int decode_options(int& argc, char**& argv)
 		opt_restore_files,
 		opt_restore_directory,
 		opt_restore_inode,
+		opt_restore_depth,
+		opt_restore_entries,
 		opt_restore_all,
 		opt_help,
 		opt_log
@@ -407,6 +413,8 @@ static int decode_options(int& argc, char**& argv)
 		{"inode-to-block", 1, &long_option, opt_inode_to_block},
 		{"show-journal-inodes", 1, &long_option, opt_show_journal_inodes},
 		{"restore-inode", 1, &long_option, opt_restore_inode},
+		{"restore-depth", 0, &long_option, opt_restore_depth},
+		{"restore-entries", 0, &long_option, opt_restore_entries},
 		{"restore-file", 1, &long_option, opt_restore_file},
 		{"restore-files", 1, &long_option, opt_restore_files},
 		{"restore-directory", 1, &long_option, opt_restore_directory},
@@ -462,6 +470,18 @@ static int decode_options(int& argc, char**& argv)
 			case opt_restore_directory:
 				commandline_restore_directory = optarg;
 				break;
+			case opt_restore_depth:
+				Config::depth = strtoul(optarg, NULL, 10);
+				if (errno) {
+					Log::error << "Invalid parameter: --restore-depth " << optarg << std::endl;
+					return EU_DECODE_FAIL;
+				}
+			case opt_restore_entries:
+				Config::entries = strtoul(optarg, NULL, 10);
+				if (errno) {
+					Log::error << "Invalid parameter: --restore-entries " << optarg << std::endl;
+					return EU_DECODE_FAIL;
+				}
 			case opt_restore_all:
 				Config::restore_all = true;
 				break;

@@ -271,7 +271,7 @@ errout:
 errcode_t ext2fs_extent_open2_with_depth(ext2_filsys fs, ext2_ino_t ino,
 							  struct ext2_inode *inode,
 							  int depth,
-						      int entries,
+          						  int entries,
 							  ext2_extent_handle_t *ret_handle)
 {
 	struct ext2_extent_handle	*handle;
@@ -304,8 +304,8 @@ errcode_t ext2fs_extent_open2_with_depth(ext2_filsys fs, ext2_ino_t ino,
 
 	eh = (struct ext3_extent_header *) &handle->inode->i_block[0];
 	if (eh->eh_entries == 0) {
-		eh->eh_entries = __u16(entries);
-		eh->eh_depth = __u16(depth);
+		eh->eh_entries = ext2fs_cpu_to_le16(entries);
+		eh->eh_depth = ext2fs_cpu_to_le16(depth);
 	}
 	for (i=0; i < EXT2_N_BLOCKS; i++)
 		if (handle->inode->i_block[i])

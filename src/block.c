@@ -922,7 +922,7 @@ errcode_t extundelete_block_iterate3_with_depth(ext2_filsys fs,
 		int			uninit;
 		unsigned int		j;
 
-		ctx.errcode = ext2fs_extent_open2_with_depth(fs, ino, &inode, &handle);
+		ctx.errcode = ext2fs_extent_open2_with_depth(fs, ino, &inode, depth, entries, &handle);
 		if (ctx.errcode)
 			goto abort_exit;
 

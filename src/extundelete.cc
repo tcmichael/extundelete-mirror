@@ -1506,7 +1506,7 @@ errcode_t restore_file(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t depth, ext2_i
 		return retval;
 	}
 	if(curr_part == "") {
-		retval = restore_inode_with_depth(fs, jfs, ino, fname);
+		retval = restore_inode_with_depth(fs, jfs, ino, depth, entries, fname);
 		if(retval == 0)
 			Log::status << "Successfully restored file " << fname << std::endl;
 		else
@@ -1814,7 +1814,7 @@ errcode_t restore_inode_with_depth(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t i
 		retval = EU_RESTORE_FAIL;
 		goto finally;
 	}
-	retval = extundelete_block_iterate3_with_depth (fs, *inode, BLOCK_FLAG_DATA_ONLY, NULL, first_block_is_allocated, &allocated);
+	retval = extundelete_block_iterate3_with_depth (fs, *inode, BLOCK_FLAG_DATA_ONLY, depth, entries, NULL, first_block_is_allocated, &allocated);
 	if( retval) {
 		Log::warn << "Unable to restore inode " << ino << " (" << fname
 				  << "): No data found." << std::endl;
@@ -1858,7 +1858,7 @@ errcode_t restore_inode_with_depth(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t i
 		if (file.is_open())
 		{
 			struct filebuf bufstruct = {&file, buf};
-			flag = extundelete_block_iterate3_with_depth (fs, *inode, BLOCK_FLAG_DATA_ONLY, NULL, write_block, &bufstruct);
+			flag = extundelete_block_iterate3_with_depth (fs, *inode, BLOCK_FLAG_DATA_ONLY, depth, entries, NULL, write_block, &bufstruct);
 			file.seekg( 0, std::ios::end );
 			fsize = file.tellg();
 			file.close();

@@ -413,8 +413,8 @@ static int decode_options(int& argc, char**& argv)
 		{"inode-to-block", 1, &long_option, opt_inode_to_block},
 		{"show-journal-inodes", 1, &long_option, opt_show_journal_inodes},
 		{"restore-inode", 1, &long_option, opt_restore_inode},
-		{"restore-depth", 0, &long_option, opt_restore_depth},
-		{"restore-entries", 0, &long_option, opt_restore_entries},
+		{"restore-depth", 1, &long_option, opt_restore_depth},
+		{"restore-entries", 1, &long_option, opt_restore_entries},
 		{"restore-file", 1, &long_option, opt_restore_file},
 		{"restore-files", 1, &long_option, opt_restore_files},
 		{"restore-directory", 1, &long_option, opt_restore_directory},
@@ -471,17 +471,21 @@ static int decode_options(int& argc, char**& argv)
 				commandline_restore_directory = optarg;
 				break;
 			case opt_restore_depth:
+				errno = 0;
 				Config::depth = strtoul(optarg, NULL, 10);
 				if (errno) {
 					Log::error << "Invalid parameter: --restore-depth " << optarg << std::endl;
 					return EU_DECODE_FAIL;
 				}
+				break;
 			case opt_restore_entries:
+				errno = 0;
 				Config::entries = strtoul(optarg, NULL, 10);
 				if (errno) {
 					Log::error << "Invalid parameter: --restore-entries " << optarg << std::endl;
 					return EU_DECODE_FAIL;
 				}
+				break;
 			case opt_restore_all:
 				Config::restore_all = true;
 				break;

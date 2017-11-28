@@ -79,7 +79,7 @@ int load_super_block(ext2_filsys fs);
 int init_journal(ext2_filsys fs, ext2_filsys jfs, journal_superblock_t *jsb);
 errcode_t restore_file(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t depth, ext2_ino_t entries, const std::string& fname);
 errcode_t restore_inode(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t ino, const std::string& dname);
-errcode_t restore_inode_with_depth(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t ino, const std::string& dname);
+errcode_t restore_inode_with_depth(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t ino, ext2_ino_t depth, ext2_ino_t entries, const std::string& dname);
 errcode_t read_journal_block(ext2_filsys fs, blk64_t n, char *buf);
 errcode_t read_block(ext2_filsys fs, blk_t *blocknr, e2_blkcnt_t blockcnt,
 		blk_t /*ref_blk*/, int /*ref_offset*/, void *buf);

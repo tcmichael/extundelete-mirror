@@ -132,8 +132,8 @@ static void print_usage(std::ostream& os, std::string cmd)
   os << "Actions:\n";
   os << "  --inode ino            Show info on inode 'ino'.\n";
   os << "  --block blk            Show info on block 'blk'.\n";
-  os << "  --delpth depth         Set leaf inode depth 'depth'.\n";
-  os << "  --entries entries      Set leaf inode depth 'entries'.\n";
+  os << "  --restore-depth depth         Set leaf inode depth 'depth'.\n";
+  os << "  --restore-entries entries      Set leaf inode depth 'entries'.\n";
   os << "  --restore-inode ino[,ino,...]\n";
   os << "                         Restore the file(s) with known inode number 'ino'.\n";
   os << "                         The restored files are created in ./RECOVERED_FILES\n";

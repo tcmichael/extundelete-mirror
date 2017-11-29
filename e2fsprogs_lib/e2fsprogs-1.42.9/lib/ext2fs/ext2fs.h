@@ -1082,6 +1082,11 @@ extern errcode_t ext2fs_extent_open(ext2_filsys fs, ext2_ino_t ino,
 extern errcode_t ext2fs_extent_open2(ext2_filsys fs, ext2_ino_t ino,
 					struct ext2_inode *inode,
 					ext2_extent_handle_t *ret_handle);
+extern errcode_t ext2fs_extent_open2_with_depth(ext2_filsys fs, ext2_ino_t ino,
+									 struct ext2_inode *inode,
+									 int depth,
+									 int entries,
+									 ext2_extent_handle_t *ret_handle);
 extern void ext2fs_extent_free(ext2_extent_handle_t handle);
 extern errcode_t ext2fs_extent_get(ext2_extent_handle_t handle,
 				   int flags, struct ext2fs_extent *extent);

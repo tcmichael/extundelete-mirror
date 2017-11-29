@@ -41,6 +41,19 @@ errcode_t extundelete_block_iterate3(ext2_filsys fs,
 					    int		ref_offset,
 					    void	*priv_data),
 				void *priv_data);
+errcode_t extundelete_block_iterate3_with_depth(ext2_filsys fs,
+									 struct ext2_inode inode,
+									 int	flags,
+									 int   depth,
+									 int   entries,
+									 char *block_buf,
+									 int (*func)(ext2_filsys fs,
+												 blk64_t	*blocknr,
+												 e2_blkcnt_t	blockcnt,
+												 blk64_t	ref_blk,
+												 int		ref_offset,
+												 void	*priv_data),
+									 void *priv_data);
 
 #ifdef __cplusplus
 }

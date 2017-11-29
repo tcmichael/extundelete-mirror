@@ -268,6 +268,96 @@ errout:
 	return retval;
 }
 
+errcode_t ext2fs_extent_open2_with_depth(ext2_filsys fs, ext2_ino_t ino,
+							  struct ext2_inode *inode,
+							  int depth,
+          						  int entries,
+							  ext2_extent_handle_t *ret_handle)
+{
+	struct ext2_extent_handle	*handle;
+	errcode_t			retval;
+	int				i;
+	struct ext3_extent_header	*eh;
+
+	EXT2_CHECK_MAGIC(fs, EXT2_ET_MAGIC_EXT2FS_FILSYS);
+
+	if (!inode)
+		if ((ino == 0) || (ino > fs->super->s_inodes_count))
+			return EXT2_ET_BAD_INODE_NUM;
+
+	retval = ext2fs_get_mem(sizeof(struct ext2_extent_handle), &handle);
+	if (retval)
+		return retval;
+	memset(handle, 0, sizeof(struct ext2_extent_handle));
+
+	handle->ino = ino;
+	handle->fs = fs;
+
+	if (inode) {
+		handle->inode = inode;
+	} else {
+		handle->inode = &handle->inodebuf;
+		retval = ext2fs_read_inode(fs, ino, handle->inode);
+		if (retval)
+			goto errout;
+	}
+
+	eh = (struct ext3_extent_header *) &handle->inode->i_block[0];
+	if (eh->eh_entries == 0) {
+		eh->eh_entries = ext2fs_cpu_to_le16(entries);
+		eh->eh_depth = ext2fs_cpu_to_le16(depth);
+	}
+	for (i=0; i < EXT2_N_BLOCKS; i++)
+		if (handle->inode->i_block[i])
+			break;
+	if (i >= EXT2_N_BLOCKS) {
+		eh->eh_magic = ext2fs_cpu_to_le16(EXT3_EXT_MAGIC);
+		eh->eh_depth = 0;
+		eh->eh_entries = 0;
+		i = (sizeof(handle->inode->i_block) - sizeof(*eh)) /
+			sizeof(struct ext3_extent);
+		eh->eh_max = ext2fs_cpu_to_le16(i);
+		handle->inode->i_flags |= EXT4_EXTENTS_FL;
+	}
+
+	if (!(handle->inode->i_flags & EXT4_EXTENTS_FL)) {
+		retval = EXT2_ET_INODE_NOT_EXTENT;
+		goto errout;
+	}
+
+	retval = ext2fs_extent_header_verify(eh, sizeof(handle->inode->i_block));
+	if (retval)
+		goto errout;
+
+	handle->max_depth = ext2fs_le16_to_cpu(eh->eh_depth);
+	handle->type = ext2fs_le16_to_cpu(eh->eh_magic);
+
+	retval = ext2fs_get_mem(((handle->max_depth+1) *
+							 sizeof(struct extent_path)),
+							&handle->path);
+	memset(handle->path, 0,
+		   (handle->max_depth+1) * sizeof(struct extent_path));
+	handle->path[0].buf = (char *) handle->inode->i_block;
+
+	handle->path[0].left = handle->path[0].entries =
+			ext2fs_le16_to_cpu(eh->eh_entries);
+	handle->path[0].max_entries = ext2fs_le16_to_cpu(eh->eh_max);
+	handle->path[0].curr = 0;
+	handle->path[0].end_blk =
+			(EXT2_I_SIZE(handle->inode) + fs->blocksize - 1) >>
+															 EXT2_BLOCK_SIZE_BITS(fs->super);
+	handle->path[0].visit_num = 1;
+	handle->level = 0;
+	handle->magic = EXT2_ET_MAGIC_EXTENT_HANDLE;
+
+	*ret_handle = handle;
+	return 0;
+
+	errout:
+	ext2fs_extent_free(handle);
+	return retval;
+}
+
 /*
  * This function is responsible for (optionally) moving through the
  * extent tree and then returning the current extent

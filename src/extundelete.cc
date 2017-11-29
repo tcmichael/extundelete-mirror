@@ -1306,7 +1306,7 @@ if not found, look through all revoked fs blocks
 if found entry, assign a new number to ino and new curr_part
 if found entry, goto beginsearch with new ino and curr_part
 */
-errcode_t restore_file(ext2_filsys fs, ext2_filsys jfs, const std::string& fname)
+errcode_t restore_file(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t depth, ext2_ino_t entries, const std::string& fname)
 {
 	// Look through the directory structure to get as close as possible to the file.
 	ext2_ino_t ino = EXT2_ROOT_INO;
@@ -1506,7 +1506,7 @@ errcode_t restore_file(ext2_filsys fs, ext2_filsys jfs, const std::string& fname
 		return retval;
 	}
 	if(curr_part == "") {
-		retval = restore_inode(fs, jfs, ino, fname);
+		retval = restore_inode_with_depth(fs, jfs, ino, depth, entries, fname);
 		if(retval == 0)
 			Log::status << "Successfully restored file " << fname << std::endl;
 		else
@@ -1600,7 +1600,7 @@ static errcode_t recover_inode(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t ino,
 		}
 	}
 	delete[] buf;
-	if( !found ) return EU_RESTORE_FAIL;
+//	if( !found ) return EU_RESTORE_FAIL;
 
 	return retval;
 }
@@ -1791,6 +1791,131 @@ finally:
 	return retval;
 }
 
+errcode_t restore_inode_with_depth(ext2_filsys fs, ext2_filsys jfs, ext2_ino_t ino, ext2_ino_t depth, ext2_ino_t entries, const std::string& dname)
+{
+	errcode_t retval;
+	std::streampos fsize = 0;
+	blk64_t tsize;
+	std::string fname (dname);
+	std::string outputdir2;
+	size_t nextslash;
+	char *buf = NULL;
+	errcode_t flag = 0;
+	std::string fname2;
+	struct ext2_inode *inode;
+	int allocated = 2;
+
+	sanitize_file_name(fname);
+	inode = (struct ext2_inode *) operator new(EXT2_INODE_SIZE(fs->super));
+	retval = recover_inode(fs, jfs, ino, inode, 0);
+	if( retval ) {
+		Log::warn << "Unable to restore inode " << ino << " (" << fname
+				  << "): No undeleted copies found in the journal." << std::endl;
+		retval = EU_RESTORE_FAIL;
+		goto finally;
+	}
+	retval = extundelete_block_iterate3_with_depth (fs, *inode, BLOCK_FLAG_DATA_ONLY, depth, entries, NULL, first_block_is_allocated, &allocated);
+	if( retval) {
+		Log::warn << "Unable to restore inode " << ino << " (" << fname
+				  << "): No data found." << std::endl;
+		retval = EU_RESTORE_FAIL;
+		goto finally;
+	}
+	if(allocated) {
+		Log::warn << "Unable to restore inode " << ino << " (" << fname
+				  << "): Space has been reallocated." << std::endl;
+		retval = EU_RESTORE_FAIL;
+		goto finally;
+	}
+
+	outputdir2 = outputdir + fname;
+	nextslash = outputdir2.find('/');
+	errno = 0;
+	do {
+		retval = mkdir(outputdir2.substr(0, nextslash).c_str(), 0755);
+		if(retval && errno != EEXIST) {
+			com_err("extundelete", errno, "while creating directory %s",
+					outputdir2.substr(0, nextslash).c_str());
+			retval = errno;
+			goto finally;
+		}
+		nextslash = outputdir2.find('/', nextslash+1);
+	} while(nextslash != std::string::npos);
+
+	buf = new char[ EXT2_BLOCK_SIZE(fs->super)];
+	fname2 = fname;
+	// Make sure inode corresponds to regular file
+	if ( LINUX_S_ISREG(inode->i_mode) ) {
+
+		std::fstream file ((outputdir + fname).c_str(), std::ios::in);
+		for(int n = 1; file.is_open() && (n < 55); n++) {
+			file.close();
+			fname2 = fname + ".v" + to_string(n);
+			file.open ((outputdir + fname2).c_str(), std::ios::in);
+		}
+
+		file.open((outputdir + fname2).c_str(), std::ios::binary|std::ios::out);
+		if (file.is_open())
+		{
+			struct filebuf bufstruct = {&file, buf};
+			flag = extundelete_block_iterate3_with_depth (fs, *inode, BLOCK_FLAG_DATA_ONLY, depth, entries, NULL, write_block, &bufstruct);
+			file.seekg( 0, std::ios::end );
+			fsize = file.tellg();
+			file.close();
+
+			if(!flag) {
+				std::streamoff rsize = EXT2_BLOCK_SIZE(fs->super) - inode->i_size % EXT2_BLOCK_SIZE(fs->super);
+				if( rsize == EXT2_BLOCK_SIZE(fs->super) )
+					rsize = 0;
+				if( EXT2_I_SIZE(inode) > (uint64_t) fsize ) {
+					fsize = EXT2_I_SIZE(inode);
+				}
+				tsize = fsize - rsize;
+				if ((retval = truncate( (outputdir + fname2).c_str(), tsize)) == 0) {
+					Log::info << "Restored inode " << ino << " to file "
+							  << (outputdir + fname2) << std::endl;
+					retval = 0;
+				} else {
+					Log::warn << "Failed to restore inode " << ino << " to file "
+							  << (outputdir + fname2) << ":"
+							  << "Unable to set proper file size (" << tsize
+							  << ")." << std::endl
+							  << "Attempt to truncate returned error " << retval << ".";
+					retval = EU_RESTORE_FAIL;
+				}
+			}
+			else {
+				retval = rename( (outputdir + fname2).c_str(), (outputdir + fname2 + ".part").c_str() );
+				if(retval) {
+					Log::warn << "extundelete: " << strerror(errno) << " when renaming file "
+							  << (outputdir + fname2).c_str();
+				}
+				Log::warn << "Failed to restore inode " << ino << " to file "
+						  << (outputdir + fname2) << ":"
+						  << "Some blocks were allocated." << std::endl;
+				retval = EU_RESTORE_FAIL;
+			}
+		}
+		else {
+			Log::warn << "Failed to restore inode " << ino << " to file "
+					  << (outputdir + fname2) << ":"
+					  << "Could not open output file." << std::endl;
+			retval = EU_RESTORE_FAIL;
+		}
+	}
+	else {
+		Log::info << "extundelete identified inode " << ino << " as "
+				  << (outputdir + fname2) << ":"
+				  << "The inode does not correspond to a regular file." << std::endl;
+		retval = EU_RESTORE_FAIL;
+	}
+
+	delete[] buf;
+
+	finally:
+	delete inode;
+	return retval;
+}
 
 static void parse_inode_block(ext2_filsys fs, struct ext2_inode *inode,
 		const char *buf, ext2_ino_t ino) {
